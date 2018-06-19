@@ -75,11 +75,15 @@
 #define COLLISION_ITEM   "tube::tube_link::tube_collision"
 #define COLLISION_POINT  "arm::gripperbase::gripper_link"
 
+#define COLLISION_LINK1  "arm::link1::collision"
+#define COLLISION_LINK2  "arm::link2::collision2"
+
+
 // Animation Steps
 #define ANIMATION_STEPS 1000
 
 // Set Debug Mode
-#define DEBUG false
+#define DEBUG true
 
 // Lock base rotation DOF (Add dof in header file if off)
 #define LOCKBASE true
@@ -270,6 +274,7 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 
 	for (unsigned int i = 0; i < contacts->contact_size(); ++i)
 	{
+
 		if( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_FILTER) == 0 )
 			continue;
 
@@ -281,12 +286,27 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 		/ TODO - Check if there is collision between the arm and object, then issue learning reward
 		/
 		*/
+		#define COLLISION_POINT  "arm::gripperbase::gripper_link"
+
+		#define COLLISION_LINK1  "arm::link1::collision"
+		#define COLLISION_LINK2  "arm::link2::collision2"
+		bool collisionCheck_grip = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT) == 0 );
+        bool collisionCheck_body = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK1) == 0 )
+          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK2) == 0 );
 		
-		bool collisionCheck = false;
-		
-		if (collisionCheck)
+		if (collisionCheck_grip)
 		{
 			rewardHistory = REWARD_WIN;
+
+			newReward  = true;
+			endEpisode = true;
+
+			return;
+		}
+      
+      	else if (collisionCheck_body)
+		{
+			rewardHistory = REWARD_LOSS;
 
 			newReward  = true;
 			endEpisode = true;
@@ -638,8 +658,8 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 				const float alpha = 0.2;
 				// compute the smoothed moving average of the delta of the distance to the goal
 				avgGoalDelta  = avgGoalDelta * alpha + distGoal * (1-alpha);
-				rewardHistory = true;
-				newReward     = false;	
+				rewardHistory = distDelta;
+				newReward     = true;	
 			}
 
 			lastGoalDistance = distGoal;
