@@ -54,7 +54,7 @@
 #define LEARNING_RATE 0.01f
 #define REPLAY_MEMORY 10000
 #define BATCH_SIZE 8
-#define USE_LSTM false
+#define USE_LSTM true
 #define LSTM_SIZE 32
 
 /*
@@ -62,7 +62,7 @@
 /
 */
 
-#define REWARD_WIN  5.0f
+#define REWARD_WIN  20.0f
 #define REWARD_LOSS -1.0f
 
 // Define Object Names
@@ -397,17 +397,23 @@ bool ArmPlugin::updateAgent()
 	*/
 	float joint = 0.0; // TODO - Set joint position based on whether action is even or odd.
 
-  if (action/2==0)
-      joint = ref[action/2]+actionJointDelta;
+  if (action%2==0)
+      joint = ref[action/2]+actionJointDelta*4;
   else
-      joint = ref[action/2]-actionJointDelta;
+      joint = ref[action/2]-actionJointDelta*4;
   
 	// limit the joint to the specified range
 	if( joint < JOINT_MIN )
+    {
+      printf("joint limit min\n");
 		joint = JOINT_MIN;
+    }
 	
 	if( joint > JOINT_MAX )
+    {
+      printf("joint limit MAX\n");
 		joint = JOINT_MAX;
+    }
 
 	ref[action/2] = joint;
 
@@ -654,10 +660,12 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 			
 			if( episodeFrames > 1 )
 			{
-				const float distDelta  = lastGoalDistance - distGoal;
-				const float alpha = 0.2;
+				float distDelta  = lastGoalDistance - distGoal;
+				/*const float alpha = 0.1;
 				// compute the smoothed moving average of the delta of the distance to the goal
-				avgGoalDelta  = avgGoalDelta * alpha + distGoal * (1-alpha);
+				avgGoalDelta  = avgGoalDelta * alpha + distGoal * (1-alpha);*/
+                if (abs(distDelta)<0.01)
+                  distDelta = -0.5;
 				rewardHistory = distDelta;
 				newReward     = true;	
 			}
