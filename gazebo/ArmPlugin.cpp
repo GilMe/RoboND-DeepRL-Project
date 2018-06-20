@@ -25,10 +25,10 @@
 #define INPUT_CHANNELS 3
 #define ALLOW_RANDOM true
 #define DEBUG_DQN false
-#define GAMMA 0.9f
+#define GAMMA 0.7f
 #define EPS_START 0.9f
-#define EPS_END 0.05f
-#define EPS_DECAY 200
+#define EPS_END 0.01f
+#define EPS_DECAY 50
 
 /*
 / TODO - Tune the following hyperparameters
@@ -47,23 +47,27 @@
 */
 
 
-#define INPUT_WIDTH   512
-#define INPUT_HEIGHT  512
-#define NUM_ACTIONS 6
-#define OPTIMIZER "RMSprop"
+//#define INPUT_WIDTH   512
+//#define INPUT_HEIGHT  512
+#define INPUT_WIDTH   64
+#define INPUT_HEIGHT  64
+
+#define NUM_ACTIONS 4		//there a 2 joints in this exercise and that have 2 actions each (the base is disabled)
+//#define OPTIMIZER "RMSprop"
+#define OPTIMIZER "Adam"
 #define LEARNING_RATE 0.01f
 #define REPLAY_MEMORY 10000
-#define BATCH_SIZE 8
+#define BATCH_SIZE 256
 #define USE_LSTM true
-#define LSTM_SIZE 32
+#define LSTM_SIZE 256
 
 /*
 / TODO - Define Reward Parameters
 /
 */
 
-#define REWARD_WIN  20.0f
-#define REWARD_LOSS -1.0f
+#define REWARD_WIN  1000.0f
+#define REWARD_LOSS -500.0f
 
 // Define Object Names
 #define WORLD_NAME "arm_world"
@@ -73,7 +77,13 @@
 // Define Collision Parameters
 #define COLLISION_FILTER "ground_plane::link::collision"
 #define COLLISION_ITEM   "tube::tube_link::tube_collision"
+
 #define COLLISION_POINT  "arm::gripperbase::gripper_link"
+#define COLLISION_POINT_MIDDLE  "arm::gripper_middle::middle_collision"
+#define COLLISION_POINT_RIGHT  "arm::gripper_right::right_gripper"
+#define COLLISION_POINT_LEFT  "arm::gripper_left::left_gripper"
+
+
 
 #define COLLISION_LINK1  "arm::link1::collision"
 #define COLLISION_LINK2  "arm::link2::collision2"
@@ -286,11 +296,14 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 		/ TODO - Check if there is collision between the arm and object, then issue learning reward
 		/
 		*/
-		#define COLLISION_POINT  "arm::gripperbase::gripper_link"
 
-		#define COLLISION_LINK1  "arm::link1::collision"
-		#define COLLISION_LINK2  "arm::link2::collision2"
-		bool collisionCheck_grip = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT) == 0 );
+      
+		bool collisionCheck_grip = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT) == 0 )
+          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_MIDDLE) == 0 )
+          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_RIGHT) == 0 )
+          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_LEFT) == 0 );
+      
+      
         bool collisionCheck_body = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK1) == 0 )
           || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK2) == 0 );
 		
@@ -306,6 +319,8 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
       
       	else if (collisionCheck_body)
 		{
+          std::cout << "\n\n!!!!COLLISION BODY BECAUSE OF:!!!!!!\nCollision between[" << contacts->contact(i).collision1()
+			     << "] and [" << contacts->contact(i).collision2() << "]\n\n\n";
 			rewardHistory = REWARD_LOSS;
 
 			newReward  = true;
@@ -361,7 +376,7 @@ bool ArmPlugin::updateAgent()
 	*/
 	
 	float velocity = 0.0; // TODO - Set joint velocity based on whether action is even or odd.
-	if (action/2==0)
+	if (action%2==0)
       velocity = vel[action/2]+actionVelDelta;
   	else
       velocity = vel[action/2]-actionVelDelta;
@@ -398,9 +413,9 @@ bool ArmPlugin::updateAgent()
 	float joint = 0.0; // TODO - Set joint position based on whether action is even or odd.
 
   if (action%2==0)
-      joint = ref[action/2]+actionJointDelta*4;
+      joint = ref[action/2]+actionJointDelta;
   else
-      joint = ref[action/2]-actionJointDelta*4;
+      joint = ref[action/2]-actionJointDelta;
   
 	// limit the joint to the specified range
 	if( joint < JOINT_MIN )
@@ -627,12 +642,13 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 		// get the bounding box for the gripper		
 		const math::Box& gripBBox = gripper->GetBoundingBox();
 		const float groundContact = 0.05f;
+        //const float groundContact = 0.0005f;
 		
 		/*
 		/ TODO - set appropriate Reward for robot hitting the ground.
 		/
 		*/
-		const bool checkGroundContact = (gripBBox.min.z <= groundContact);
+		const bool checkGroundContact = (gripBBox.min.z < groundContact);
 		if(checkGroundContact)
 		{
 						
@@ -640,7 +656,7 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 
 			rewardHistory = REWARD_LOSS;
 			newReward     = true;
-			endEpisode    = false;
+			endEpisode    = true;
 		}
 		
 		
@@ -661,12 +677,19 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 			if( episodeFrames > 1 )
 			{
 				float distDelta  = lastGoalDistance - distGoal;
-				/*const float alpha = 0.1;
+                //printf("distDelta = %f %d ",distDelta,distDelta<0.000001 && distDelta>-0.000001);
+				const float alpha = 0.3;
 				// compute the smoothed moving average of the delta of the distance to the goal
-				avgGoalDelta  = avgGoalDelta * alpha + distGoal * (1-alpha);*/
-                if (abs(distDelta)<0.01)
-                  distDelta = -0.5;
-				rewardHistory = distDelta;
+				avgGoalDelta  = avgGoalDelta * alpha + distDelta * (1-alpha);
+                if (distDelta<0.001 && distDelta>-0.001)
+                  rewardHistory = REWARD_LOSS / 10;
+				else
+                  //rewardHistory = REWARD_WIN * distDelta / 4;
+                  rewardHistory = REWARD_WIN * avgGoalDelta / 4;
+                  //rewardHistory = REWARD_WIN * avgGoalDelta;
+                
+                //if (rewardHistory >=0)
+                  //rewardHistory += REWARD_WIN/ (30 * distGoal);
 				newReward     = true;	
 			}
 
