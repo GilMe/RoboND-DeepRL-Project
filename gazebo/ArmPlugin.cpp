@@ -25,7 +25,7 @@
 #define INPUT_CHANNELS 3
 #define ALLOW_RANDOM true
 #define DEBUG_DQN false
-#define GAMMA 0.7f
+#define GAMMA 0.9f
 #define EPS_START 0.9f
 #define EPS_END 0.05f
 #define EPS_DECAY 200
@@ -320,8 +320,8 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
       
       	else if (collisionCheck_body)
 		{
-          std::cout << "\n\n!!!!COLLISION BODY BECAUSE OF:!!!!!!\nCollision between[" << contacts->contact(i).collision1()
-			     << "] and [" << contacts->contact(i).collision2() << "]\n\n\n";
+          /*std::cout << "\n\n!!!!COLLISION BODY BECAUSE OF:!!!!!!\nCollision between[" << contacts->contact(i).collision1()
+			     << "] and [" << contacts->contact(i).collision2() << "]\n\n\n";*/
 			rewardHistory = REWARD_LOSS;
 
 			newReward  = true;
@@ -421,13 +421,13 @@ bool ArmPlugin::updateAgent()
 	// limit the joint to the specified range
 	if( joint < JOINT_MIN )
     {
-      printf("joint limit min\n");
+      //printf("joint limit min\n");
 		joint = JOINT_MIN;
     }
 	
 	if( joint > JOINT_MAX )
     {
-      printf("joint limit MAX\n");
+      //printf("joint limit MAX\n");
 		joint = JOINT_MAX;
     }
 
