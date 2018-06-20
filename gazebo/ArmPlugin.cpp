@@ -27,8 +27,8 @@
 #define DEBUG_DQN false
 #define GAMMA 0.7f
 #define EPS_START 0.9f
-#define EPS_END 0.01f
-#define EPS_DECAY 50
+#define EPS_END 0.05f
+#define EPS_DECAY 200
 
 /*
 / TODO - Tune the following hyperparameters
@@ -66,8 +66,9 @@
 /
 */
 
-#define REWARD_WIN  1000.0f
-#define REWARD_LOSS -500.0f
+#define REWARD_WIN  50.0f
+#define REWARD_LOSS -50.0f
+#define SCALE 10.0f
 
 // Define Object Names
 #define WORLD_NAME "arm_world"
@@ -93,7 +94,7 @@
 #define ANIMATION_STEPS 1000
 
 // Set Debug Mode
-#define DEBUG true
+#define DEBUG false
 
 // Lock base rotation DOF (Add dof in header file if off)
 #define LOCKBASE true
@@ -309,7 +310,7 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 		
 		if (collisionCheck_grip)
 		{
-			rewardHistory = REWARD_WIN;
+			rewardHistory = REWARD_WIN * 100;
 
 			newReward  = true;
 			endEpisode = true;
@@ -653,8 +654,8 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 		{
 						
 			if(DEBUG){printf("GROUND CONTACT, EOE\n");}
-
-			rewardHistory = REWARD_LOSS;
+			const float distGoal = BoxDistance(gripBBox, propBBox);
+			rewardHistory = REWARD_LOSS *  distGoal * 4;
 			newReward     = true;
 			endEpisode    = true;
 		}
@@ -682,14 +683,14 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 				// compute the smoothed moving average of the delta of the distance to the goal
 				avgGoalDelta  = avgGoalDelta * alpha + distDelta * (1-alpha);
                 if (distDelta<0.001 && distDelta>-0.001)
-                  rewardHistory = REWARD_LOSS / 10;
+                  rewardHistory = REWARD_LOSS / (20 * SCALE);
 				else
-                  //rewardHistory = REWARD_WIN * distDelta / 4;
-                  rewardHistory = REWARD_WIN * avgGoalDelta / 4;
-                  //rewardHistory = REWARD_WIN * avgGoalDelta;
+                  rewardHistory = REWARD_WIN * distDelta / (4 * SCALE);
+                  //rewardHistory = REWARD_WIN * avgGoalDelta / (4 * SCALE);
+                  //rewardHistory = REWARD_WIN * avgGoalDelta / SCALE;
                 
                 //if (rewardHistory >=0)
-                  //rewardHistory += REWARD_WIN/ (30 * distGoal);
+                  //rewardHistory += REWARD_WIN/ (30 * distGoal * SCALE);
 				newReward     = true;	
 			}
 
