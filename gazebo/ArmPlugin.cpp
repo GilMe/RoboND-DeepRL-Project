@@ -34,7 +34,7 @@
 / TODO - Tune the following hyperparameters
 /
 */
-/*
+/* Default values
 #define INPUT_WIDTH   512
 #define INPUT_HEIGHT  512
 #define NUM_ACTIONS 6
@@ -47,8 +47,7 @@
 */
 
 
-//#define INPUT_WIDTH   512
-//#define INPUT_HEIGHT  512
+
 #define INPUT_WIDTH   64
 #define INPUT_HEIGHT  64
 
@@ -68,7 +67,7 @@
 
 #define REWARD_WIN  50.0f
 #define REWARD_LOSS -50.0f
-#define SCALE 10.0f
+#define SCALE 10.0f		// value used to play around with the scale between the interim rewards and final rewards
 
 // Define Object Names
 #define WORLD_NAME "arm_world"
@@ -176,7 +175,6 @@ void ArmPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr /*_sdf*/)
 	/
 	*/
 	collisionSub = collisionNode->Subscribe("/gazebo/arm_world/tube/tube_link/my_contact", &ArmPlugin::onCollisionMsg, this);
-	//collisionSub = None;
 
 	// Listen to the update event. This event is broadcast every simulation iteration.
 	this->updateConnection = event::Events::ConnectWorldUpdateBegin(boost::bind(&ArmPlugin::OnUpdate, this, _1));
@@ -201,7 +199,6 @@ bool ArmPlugin::createAgent()
                        LEARNING_RATE, REPLAY_MEMORY, BATCH_SIZE, 
                        GAMMA, EPS_START, EPS_END, EPS_DECAY,
                        USE_LSTM, LSTM_SIZE, ALLOW_RANDOM, DEBUG_DQN);
-	//agent = NULL;
 
 	if( !agent )
 	{
@@ -298,18 +295,21 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 		/
 		*/
 
-      
-		bool collisionCheck_grip = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT) == 0 )
-          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_MIDDLE) == 0 )
+       // check if the collision is with the gripper COLLISION_POINT
+		bool collisionCheck_grip = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT) == 0 );
+          /*|| ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_MIDDLE) == 0 )
           || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_RIGHT) == 0 )
-          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_LEFT) == 0 );
+          || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_POINT_LEFT) == 0 );*/
       
-      
+        // check if the collision is with the rest of the body
         bool collisionCheck_body = ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK1) == 0 )
           || ( strcmp(contacts->contact(i).collision2().c_str(), COLLISION_LINK2) == 0 );
 		
+      //if the collision is with the gripper
 		if (collisionCheck_grip)
 		{
+            /* giving a very high reward for sucess make the NN gravitate toward choosing the same action for a given state that got it the reward
+            this value also propogates to other states */
 			rewardHistory = REWARD_WIN * 1000;
 
 			newReward  = true;
@@ -317,11 +317,10 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 
 			return;
 		}
-      
+        //if the coliision is with the body
       	else if (collisionCheck_body)
 		{
-          /*std::cout << "\n\n!!!!COLLISION BODY BECAUSE OF:!!!!!!\nCollision between[" << contacts->contact(i).collision1()
-			     << "] and [" << contacts->contact(i).collision2() << "]\n\n\n";*/
+            // give negitive reward and end episode
 			rewardHistory = REWARD_LOSS;
 
 			newReward  = true;
@@ -652,7 +651,7 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 		const bool checkGroundContact = (gripBBox.min.z < groundContact);
 		if(checkGroundContact)
 		{
-						
+			//end and give negitive reward proportionate to the distance to the target and end episode
 			if(DEBUG){printf("GROUND CONTACT, EOE\n");}
 			const float distGoal = BoxDistance(gripBBox, propBBox);
 			rewardHistory = REWARD_LOSS *  distGoal * 4;
@@ -678,19 +677,20 @@ void ArmPlugin::OnUpdate(const common::UpdateInfo& updateInfo)
 			if( episodeFrames > 1 )
 			{
 				float distDelta  = lastGoalDistance - distGoal;
-                //printf("distDelta = %f %d ",distDelta,distDelta<0.000001 && distDelta>-0.000001);
-				const float alpha = 0.3;
+                /* 
+                const float alpha = 0.3;
 				// compute the smoothed moving average of the delta of the distance to the goal
-				avgGoalDelta  = avgGoalDelta * alpha + distDelta * (1-alpha);
-                if (distDelta<0.001 && distDelta>-0.001)
+				avgGoalDelta  = avgGoalDelta * alpha + distDelta * (1-alpha);*/
+              
+              // give negative reward if arm not moving
+              if (distDelta<0.001 && distDelta>-0.001)
                   rewardHistory = REWARD_LOSS / (20 * SCALE);
-				else
+			  else
+                  // give reward based on the distance change scaled
                   rewardHistory = REWARD_WIN * distDelta / (4 * SCALE);
                   //rewardHistory = REWARD_WIN * avgGoalDelta / (4 * SCALE);
                   //rewardHistory = REWARD_WIN * avgGoalDelta / SCALE;
-                
-                //if (rewardHistory >=0)
-                  //rewardHistory += REWARD_WIN/ (30 * distGoal * SCALE);
+              
 				newReward     = true;	
 			}
 
