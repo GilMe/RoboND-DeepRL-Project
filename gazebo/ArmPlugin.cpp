@@ -53,8 +53,8 @@
 #define INPUT_HEIGHT  64
 
 #define NUM_ACTIONS 4		//there a 2 joints in this exercise and that have 2 actions each (the base is disabled)
-//#define OPTIMIZER "RMSprop"
-#define OPTIMIZER "Adam"
+#define OPTIMIZER "RMSprop"
+//#define OPTIMIZER "Adam"
 #define LEARNING_RATE 0.01f
 #define REPLAY_MEMORY 10000
 #define BATCH_SIZE 256
@@ -310,7 +310,7 @@ void ArmPlugin::onCollisionMsg(ConstContactsPtr &contacts)
 		
 		if (collisionCheck_grip)
 		{
-			rewardHistory = REWARD_WIN * 100;
+			rewardHistory = REWARD_WIN * 1000;
 
 			newReward  = true;
 			endEpisode = true;
